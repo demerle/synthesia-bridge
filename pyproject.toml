@@ -5,7 +5,7 @@ description = "Run HOMR to convert PNG sheet music images into MusicXML"
 requires-python = ">=3.11"
 license = "AGPL-3.0-only"
 dependencies = [
-    "homr",
+    "homr @ git+https://github.com/liebharc/homr.git@b43d58c57dc556e1b27a13347667aa17cf3dd689",
     "PyMuPDF",
     "music21",
 ]
@@ -30,3 +30,9 @@ where = ["src"]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
+
+[tool.pytest.ini_options]
+markers = [
+    "e2e: runs real HOMR inference and the complete PDF-to-MIDI pipeline",
+    "slow: runs a larger real-world inference fixture",
+]
