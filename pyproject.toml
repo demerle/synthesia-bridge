@@ -6,6 +6,7 @@ requires-python = ">=3.11"
 license = "AGPL-3.0-only"
 dependencies = [
     "homr",
+    "PyMuPDF",
 ]
 
 [project.optional-dependencies]
