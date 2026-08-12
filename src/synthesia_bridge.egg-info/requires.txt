@@ -1,4 +1,6 @@
 homr
+PyMuPDF
+music21
 
 [dev]
 pytest

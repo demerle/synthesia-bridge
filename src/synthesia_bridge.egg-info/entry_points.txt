@@ -1,0 +1,2 @@
+[console_scripts]
+musicxml-to-midi = synthesia_bridge.services.musicXML_to_midi:main
