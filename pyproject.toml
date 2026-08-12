@@ -1,11 +1,11 @@
 [project]
 name = "synthesia-bridge"
-description = "Convert sheet music images/PDFs into MIDI piano performances for Synthesia"
+version = "0.1.0"
+description = "Run HOMR to convert PNG sheet music images into MusicXML"
 requires-python = ">=3.11"
 license = "AGPL-3.0-only"
 dependencies = [
     "homr",
-    "music21",
 ]
 
 [project.optional-dependencies]
@@ -15,9 +15,6 @@ gpu = [
 dev = [
     "pytest",
 ]
-
-[project.scripts]
-synthesia-bridge = "synthesia_bridge.cli:main"
 
 [build-system]
 requires = ["setuptools>=68.0"]

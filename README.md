@@ -1,62 +1,33 @@
 # synthesia-bridge
 
-Convert sheet music images or PDFs into MIDI piano performances for use with Synthesia.
-
-## Pipeline
-
-```
-Sheet Music (PNG/JPG/PDF)
-    |
-    v
-[1] homr (Optical Music Recognition)
-    |
-    v
-MusicXML
-    |
-    v
-[2] music21 (MusicXML parser)
-    |
-    v
-MIDI (.mid)
-```
-
-## Prerequisites
-
-- Python 3.11 or higher
-- CUDA-capable GPU (optional, speeds up OMR significantly)
+Minimal Python wrapper for converting one PNG sheet-music image into MusicXML
+with [HOMR](https://github.com/liebharc/homr).
 
 ## Installation
 
 ```bash
-cd synthesia-bridge
 pip install -e .
+```
 
-# For GPU support:
+For optional CUDA support:
+
+```bash
 pip install -e ".[gpu]"
 ```
 
-On first run, homr downloads ~500MB of ONNX model weights automatically.
+HOMR downloads its model weights automatically on the first run.
 
 ## Usage
 
 ```bash
-synthesia-bridge sheet_music.png
-synthesia-bridge score.pdf
+python scripts/homr_test.py sheet_music.png
 ```
 
-The resulting MIDI file is saved alongside the input file (e.g., `sheet_music.mid`).
+The output is written next to the input image as `sheet_music.musicxml`.
 
-## Development
-
-```bash
-pip install -e ".[dev]"
-pytest
-```
-
-## Limitations
-
-homr's OMR currently focuses on pitch and rhythm for treble/bass clef. Dynamics, articulation, and double sharps/flats are not yet supported.
+HOMR currently focuses on pitch and rhythm for treble and bass clef. Dynamics,
+articulation, and double sharps/flats are not fully supported.
 
 ## License
 
-AGPL-3.0 (inherited from homr).
+AGPL-3.0 (inherited from HOMR).

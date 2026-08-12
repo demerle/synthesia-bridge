@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: synthesia-bridge
+Version: 0.1.0
+Summary: Run HOMR to convert PNG sheet music images into MusicXML
+License-Expression: AGPL-3.0-only
+Requires-Python: >=3.11
+Requires-Dist: homr
+Provides-Extra: gpu
+Requires-Dist: homr[gpu]; extra == "gpu"
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"

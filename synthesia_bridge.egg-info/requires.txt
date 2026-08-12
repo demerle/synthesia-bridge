@@ -1,0 +1,7 @@
+homr
+
+[dev]
+pytest
+
+[gpu]
+homr[gpu]
