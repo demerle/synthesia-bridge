@@ -12,6 +12,7 @@ dependencies = [
 
 [project.scripts]
 musicxml-to-midi = "synthesia_bridge.services.musicXML_to_midi:main"
+midi-to-video = "synthesia_bridge.services.visualizer:main"
 
 [project.optional-dependencies]
 gpu = [

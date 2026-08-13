@@ -1,5 +1,6 @@
 *.musicxml
 *.png
 *.pdf
+*.mp4
 *.idea
 *pycache*

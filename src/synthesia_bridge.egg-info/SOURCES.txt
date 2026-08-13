@@ -13,8 +13,10 @@ src/synthesia_bridge/services/__init__.py
 src/synthesia_bridge/services/homr_wrapper.py
 src/synthesia_bridge/services/musicXML_to_midi.py
 src/synthesia_bridge/services/musicxml_cleanup.py
+src/synthesia_bridge/services/visualizer.py
 tests/test_homr_wrapper.py
 tests/test_multipage_e2e.py
 tests/test_musicxml_cleanup.py
 tests/test_musicxml_to_midi.py
 tests/test_musicxml_writer.py
+tests/test_visualizer.py

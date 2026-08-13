@@ -30,6 +30,22 @@ resulting MusicXML documents are merged into one score with continuous measure
 numbers via `synthesia_bridge.services.homr_wrapper.pdf_to_musicxml`. The
 existing MusicXML-to-MIDI conversion is unchanged.
 
+### MIDI visualization
+
+Install a MIDIVisualizer release separately and ensure its executable is on
+`PATH`. Video export also requires a MIDIVisualizer build with FFmpeg support.
+Alternatively, set `MIDIVISUALIZER_BIN` to the executable path.
+
+The visualizer pipeline keeps the PDF filename hard-coded in
+`synthesia_bridge.services.visualizer.main` for now:
+
+```bash
+midi-to-video
+```
+
+This writes `output.mp4` in the current working directory. MIDIVisualizer
+renders the visual notes but does not generate audio.
+
 HOMR currently focuses on pitch and rhythm for treble and bass clef. Dynamics,
 articulation, and double sharps/flats are not fully supported.
 
