@@ -4,7 +4,7 @@ Version: 0.1.0
 Summary: Run HOMR to convert PNG sheet music images into MusicXML
 License-Expression: AGPL-3.0-only
 Requires-Python: >=3.11
-Requires-Dist: homr
+Requires-Dist: homr @ git+https://github.com/liebharc/homr.git@b43d58c57dc556e1b27a13347667aa17cf3dd689
 Requires-Dist: PyMuPDF
 Requires-Dist: music21
 Provides-Extra: gpu

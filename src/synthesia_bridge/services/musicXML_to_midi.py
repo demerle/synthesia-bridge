@@ -4,7 +4,7 @@ from xml.etree import ElementTree
 import pymupdf as fitz
 from music21 import converter, stream
 
-from synthesia_bridge.services.homr_wrapper import pdf_page_to_musicxml
+from synthesia_bridge.services.homr_wrapper import pdf_to_musicxml
 
 
 def musicXML_to_midi(music_xml: ElementTree.ElementTree) -> stream.Score:
@@ -25,15 +25,13 @@ def download_midi(
 
 
 def main() -> int:
-    pdf_path = Path("moonlight.pdf")  # Set this to the PDF you want to convert.
+    pdf_path = Path("winter-wind.pdf")  # Set this to the PDF you want to convert.
 
     if not pdf_path.is_file():
         raise FileNotFoundError(f"PDF file does not exist: {pdf_path}")
 
     with fitz.open(pdf_path) as document:
-        if len(document) == 0:
-            raise ValueError(f"PDF does not contain any pages: {pdf_path}")
-        musicxml = pdf_page_to_musicxml(document[0])
+        musicxml = pdf_to_musicxml(document)
 
     midi = musicXML_to_midi(musicxml)
     output = download_midi(midi)
