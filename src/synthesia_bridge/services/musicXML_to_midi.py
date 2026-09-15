@@ -25,7 +25,7 @@ def download_midi(
 
 
 def main() -> int:
-    pdf_path = Path("winter-wind.pdf")  # Set this to the PDF you want to convert.
+    pdf_path = Path("moonlight-1.pdf")  # Set this to the PDF you want to convert.
 
     if not pdf_path.is_file():
         raise FileNotFoundError(f"PDF file does not exist: {pdf_path}")
