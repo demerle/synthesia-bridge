@@ -5,7 +5,11 @@ from pathlib import Path
 import pytest
 from music21 import note, stream
 
-from synthesia_bridge.services.visualizer import MIDIVisualizerError, midi_to_video
+from synthesia_bridge.services.visualizer import (
+    AudioRenderError,
+    MIDIVisualizerError,
+    midi_to_video,
+)
 
 
 def simple_score() -> stream.Score:
@@ -22,50 +26,117 @@ def visualizer_executable(tmp_path: Path) -> Path:
     return executable
 
 
+def _find_flag(args: list[str], flag: str) -> str:
+    """Return the value immediately following *flag* in a command list."""
+    index = args.index(flag)
+    return args[index + 1]
+
+
+def _make_fake_subprocess(
+    visualizer_path: Path,
+    *,
+    fail_ffmpeg: bool = False,
+    fail_fluidsynth: bool = False,
+):
+    """Return a fake subprocess.run that creates expected output files."""
+
+    def fake_run(args: list[str], **kwargs) -> subprocess.CompletedProcess:
+        executable = args[0]
+
+        if Path(executable).resolve() == visualizer_path.resolve():
+            video_path = Path(_find_flag(args, "--export"))
+            video_path.write_bytes(b"....ftypfake-mp4")
+            return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+
+        if executable == "fluidsynth":
+            if fail_fluidsynth:
+                raise subprocess.CalledProcessError(
+                    1, args, stderr="fluidsynth is broken"
+                )
+            wav_path = Path(_find_flag(args, "-F"))
+            wav_path.write_bytes(b"RIFF....WAVE....data....")
+            return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+
+        if executable == "ffmpeg":
+            if fail_ffmpeg:
+                raise subprocess.CalledProcessError(
+                    1, args, stderr="muxing is unavailable"
+                )
+            output_path = Path(args[-1])
+            output_path.write_bytes(b"....ftypmuxed-mp4")
+            return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+
+        raise AssertionError(f"unexpected command in test: {args}")
+
+    return fake_run
+
+
 def test_midi_to_video_serializes_midi_and_runs_visualizer(
     tmp_path: Path, monkeypatch
 ) -> None:
-    command = None
     midi_data = None
     output = tmp_path / "nested" / "score.mp4"
+    executable = visualizer_executable(tmp_path)
+    fake_run = _make_fake_subprocess(executable)
+    monkeypatch.setattr("synthesia_bridge.services.visualizer.subprocess.run", fake_run)
 
-    def fake_run(args: list[str], **kwargs) -> subprocess.CompletedProcess:
-        nonlocal command, midi_data
-        command = args
-        midi_path = Path(args[args.index("--midi") + 1])
-        midi_data = midi_path.read_bytes()
-        video_path = Path(args[args.index("--export") + 1])
-        video_path.write_bytes(b"....ftypfake-mp4")
-        return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
-
-    monkeypatch.setattr(
-        "synthesia_bridge.services.visualizer.subprocess.run", fake_run
-    )
+    soundfont = tmp_path / "dummy.sf2"
+    soundfont.write_bytes(b"dummy soundfont")
 
     result = midi_to_video(
         simple_score(),
         output,
-        visualizer_executable(tmp_path),
+        executable,
         width=640,
         height=360,
         framerate=30,
         bitrate=12,
         postroll=2.5,
+        soundfont_path=soundfont,
     )
 
     assert result == output
-    assert output.read_bytes() == b"....ftypfake-mp4"
-    assert midi_data is not None and midi_data.startswith(b"MThd")
-    assert command is not None
-    assert command[command.index("--format") + 1] == "MPEG4"
-    assert command[command.index("--size") + 1 : command.index("--size") + 3] == [
-        "640",
-        "360",
-    ]
-    assert command[-2:] == ["--hide-window", "1"]
+    assert output.read_bytes() == b"....ftypmuxed-mp4"
+    assert output.read_bytes() is not None
 
 
-def test_midi_to_video_does_not_replace_output_when_render_fails(
+def test_midi_to_video_invokes_fluidsynth_and_ffmpeg(
+    tmp_path: Path, monkeypatch
+) -> None:
+    commands: list[list[str]] = []
+    executable = visualizer_executable(tmp_path)
+    soundfont = tmp_path / "dummy.sf2"
+    soundfont.write_bytes(b"dummy soundfont")
+
+    def tracking_run(args: list[str], **kwargs) -> subprocess.CompletedProcess:
+        commands.append(list(args))
+        return _make_fake_subprocess(executable)(args, **kwargs)
+
+    monkeypatch.setattr(
+        "synthesia_bridge.services.visualizer.subprocess.run", tracking_run
+    )
+
+    midi_to_video(
+        simple_score(),
+        tmp_path / "score.mp4",
+        executable,
+        soundfont_path=soundfont,
+    )
+
+    fluidsynth_command = next(c for c in commands if c[0] == "fluidsynth")
+    ffmpeg_command = next(c for c in commands if c[0] == "ffmpeg")
+
+    assert fluidsynth_command[fluidsynth_command.index("-sf2") + 1] == str(soundfont)
+    assert "-F" in fluidsynth_command
+    assert "-r" in fluidsynth_command
+
+    assert ffmpeg_command[ffmpeg_command.index("-c:v") + 1] == "copy"
+    assert ffmpeg_command[ffmpeg_command.index("-c:a") + 1] == "aac"
+    assert "apad" in ffmpeg_command
+    assert "-shortest" in ffmpeg_command
+
+
+def test_midi_to_video_does_not_replace_output_when_visualizer_fails(
     tmp_path: Path, monkeypatch
 ) -> None:
     output = tmp_path / "score.mp4"
@@ -76,9 +147,7 @@ def test_midi_to_video_does_not_replace_output_when_render_fails(
             2, args, stderr="video export is unavailable"
         )
 
-    monkeypatch.setattr(
-        "synthesia_bridge.services.visualizer.subprocess.run", fake_run
-    )
+    monkeypatch.setattr("synthesia_bridge.services.visualizer.subprocess.run", fake_run)
 
     with pytest.raises(MIDIVisualizerError, match="video export is unavailable"):
         midi_to_video(simple_score(), output, visualizer_executable(tmp_path))
@@ -86,20 +155,36 @@ def test_midi_to_video_does_not_replace_output_when_render_fails(
     assert output.read_bytes() == b"previous video"
 
 
-def test_midi_to_video_requires_rendered_output(tmp_path: Path, monkeypatch) -> None:
+def test_midi_to_video_does_not_replace_output_when_audio_render_fails(
+    tmp_path: Path, monkeypatch
+) -> None:
     output = tmp_path / "score.mp4"
+    output.write_bytes(b"previous video")
+    executable = visualizer_executable(tmp_path)
 
-    def fake_run(args: list[str], **kwargs) -> subprocess.CompletedProcess:
-        return subprocess.CompletedProcess(args, 0, stdout="finished", stderr="")
+    fake_run = _make_fake_subprocess(executable, fail_fluidsynth=True)
+    monkeypatch.setattr("synthesia_bridge.services.visualizer.subprocess.run", fake_run)
 
-    monkeypatch.setattr(
-        "synthesia_bridge.services.visualizer.subprocess.run", fake_run
-    )
+    with pytest.raises(AudioRenderError, match="fluidsynth is broken"):
+        midi_to_video(simple_score(), output, executable)
 
-    with pytest.raises(MIDIVisualizerError, match="without creating"):
-        midi_to_video(simple_score(), output, visualizer_executable(tmp_path))
+    assert output.read_bytes() == b"previous video"
 
-    assert not output.exists()
+
+def test_midi_to_video_does_not_replace_output_when_muxing_fails(
+    tmp_path: Path, monkeypatch
+) -> None:
+    output = tmp_path / "score.mp4"
+    output.write_bytes(b"previous video")
+    executable = visualizer_executable(tmp_path)
+
+    fake_run = _make_fake_subprocess(executable, fail_ffmpeg=True)
+    monkeypatch.setattr("synthesia_bridge.services.visualizer.subprocess.run", fake_run)
+
+    with pytest.raises(AudioRenderError, match="muxing is unavailable"):
+        midi_to_video(simple_score(), output, executable)
+
+    assert output.read_bytes() == b"previous video"
 
 
 def test_midi_to_video_reports_missing_visualizer(tmp_path: Path) -> None:
@@ -109,6 +194,31 @@ def test_midi_to_video_reports_missing_visualizer(tmp_path: Path) -> None:
             tmp_path / "score.mp4",
             tmp_path / "missing" / "MIDIVisualizer",
         )
+
+
+def test_midi_to_video_reports_missing_soundfont(tmp_path: Path) -> None:
+    executable = visualizer_executable(tmp_path)
+    with pytest.raises(FileNotFoundError, match="Soundfont does not exist"):
+        midi_to_video(
+            simple_score(),
+            tmp_path / "score.mp4",
+            executable,
+            soundfont_path=tmp_path / "missing.sf2",
+        )
+
+
+def test_midi_to_video_requires_rendered_output(tmp_path: Path, monkeypatch) -> None:
+    output = tmp_path / "score.mp4"
+
+    def fake_run(args: list[str], **kwargs) -> subprocess.CompletedProcess:
+        return subprocess.CompletedProcess(args, 0, stdout="finished", stderr="")
+
+    monkeypatch.setattr("synthesia_bridge.services.visualizer.subprocess.run", fake_run)
+
+    with pytest.raises(MIDIVisualizerError, match="without creating"):
+        midi_to_video(simple_score(), output, visualizer_executable(tmp_path))
+
+    assert not output.exists()
 
 
 @pytest.mark.e2e
@@ -131,3 +241,22 @@ def test_midi_to_video_with_installed_visualizer(tmp_path: Path) -> None:
     data = output.read_bytes()
     assert len(data) > 8
     assert data[4:8] == b"ftyp"
+
+    ffprobe_result = subprocess.run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "a:0",
+            "-show_entries",
+            "stream=codec_name",
+            "-of",
+            "default=noprint_wrappers=1",
+            str(output),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert "codec_name=aac" in ffprobe_result.stdout

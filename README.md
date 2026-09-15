@@ -1,6 +1,6 @@
 # synthesia-bridge
 
-Minimal Python wrapper for converting one PNG sheet-music image into MusicXML
+Minimal Python wrapper for converting one PNG sheet-music image into MusicXML, then MIDI, then Synthesia videos in mp4 in one pipeline
 with [HOMR](https://github.com/liebharc/homr).
 
 ## Installation
@@ -43,8 +43,10 @@ The visualizer pipeline keeps the PDF filename hard-coded in
 midi-to-video
 ```
 
-This writes `output.mp4` in the current working directory. MIDIVisualizer
-renders the visual notes but does not generate audio.
+This writes `output.mp4` in the current working directory. The video is
+rendered by MIDIVisualizer, then audio is synthesized from the same MIDI
+using FluidSynth with the bundled `piano.sf2` and muxed into the final MP4
+with FFmpeg. Both `fluidsynth` and `ffmpeg` must be on PATH.
 
 HOMR currently focuses on pitch and rhythm for treble and bass clef. Dynamics,
 articulation, and double sharps/flats are not fully supported.
