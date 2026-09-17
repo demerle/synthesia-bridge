@@ -1,9 +1,0 @@
-homr @ git+https://github.com/liebharc/homr.git@b43d58c57dc556e1b27a13347667aa17cf3dd689
-PyMuPDF
-music21
-
-[dev]
-pytest
-
-[gpu]
-homr[gpu]

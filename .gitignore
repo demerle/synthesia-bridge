@@ -1,7 +1,18 @@
+# Python / backend
 *.musicxml
 *.png
 *.pdf
 *.mp4
-*.idea
-*pycache*
 *.mid
+*pycache*
+*.pyc
+*.egg-info/
+.venv/
+
+# IDE / tooling
+.idea/
+.pytest_cache/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/

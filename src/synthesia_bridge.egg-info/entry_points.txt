@@ -1,3 +1,0 @@
-[console_scripts]
-midi-to-video = synthesia_bridge.services.visualizer:main
-musicxml-to-midi = synthesia_bridge.services.musicXML_to_midi:main
