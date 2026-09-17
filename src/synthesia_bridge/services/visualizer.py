@@ -73,6 +73,7 @@ def _validate_render_options(
     bitrate: int,
     postroll: float,
     audio_sample_rate: int,
+    audio_delay: float,
 ) -> None:
     """Validate values before handing them to the external renderer."""
     if width <= 0 or height <= 0:
@@ -85,6 +86,8 @@ def _validate_render_options(
         raise ValueError("postroll cannot be negative")
     if audio_sample_rate <= 0:
         raise ValueError("audio_sample_rate must be positive")
+    if audio_delay < 0:
+        raise ValueError("audio_delay cannot be negative")
 
 
 def midi_to_audio(
@@ -134,13 +137,17 @@ def mux_video_and_audio(
     video_path: str | Path,
     audio_path: str | Path,
     output_path: str | Path,
+    *,
+    audio_delay: float = 1.0,
 ) -> Path:
-    """Mux a silent video and a WAV into an MP4 with AAC audio."""
+    """Mux a silent video and a delayed WAV into an MP4 with AAC audio."""
     command = [
         "ffmpeg",
         "-y",
         "-i",
         str(video_path),
+        "-itsoffset",
+        str(audio_delay),
         "-i",
         str(audio_path),
         "-af",
@@ -188,6 +195,7 @@ def midi_to_video(
     config_path: str | Path | None = None,
     soundfont_path: str | Path | None = None,
     audio_sample_rate: int = DEFAULT_AUDIO_SAMPLE_RATE,
+    audio_delay: float = 1.0,
 ) -> Path:
     """Render a music21 score to an MPEG4 video with MIDIVisualizer.
 
@@ -197,7 +205,13 @@ def midi_to_video(
     from the same MIDI using FluidSynth and muxed into the final MP4.
     """
     _validate_render_options(
-        width, height, framerate, bitrate, postroll, audio_sample_rate
+        width,
+        height,
+        framerate,
+        bitrate,
+        postroll,
+        audio_sample_rate,
+        audio_delay,
     )
 
     output = Path(output_path).expanduser()
@@ -281,7 +295,12 @@ def midi_to_video(
             staged_audio_path,
             sample_rate=audio_sample_rate,
         )
-        mux_video_and_audio(staged_video_path, staged_audio_path, staged_output_path)
+        mux_video_and_audio(
+            staged_video_path,
+            staged_audio_path,
+            staged_output_path,
+            audio_delay=audio_delay,
+        )
         staged_output_path.replace(output)
 
     return output
