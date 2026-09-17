@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 
 import pymupdf as fitz
-from music21 import stream
+from music21 import stream, tempo
 
 from synthesia_bridge.services.homr_wrapper import pdf_to_musicxml
 from synthesia_bridge.services.musicXML_to_midi import download_midi, musicXML_to_midi
@@ -18,6 +18,8 @@ DEFAULT_VISUALIZER_EXECUTABLE = "MIDIVisualizer"
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_SOUNDFONT = _PROJECT_ROOT / "piano.sf2"
 DEFAULT_AUDIO_SAMPLE_RATE = 44100
+MIN_TEMPO_BPM = 10
+MAX_TEMPO_BPM = 300
 
 
 class MIDIVisualizerError(RuntimeError):
@@ -66,6 +68,19 @@ def _resolve_soundfont(
     return candidate.resolve()
 
 
+def _apply_tempo(score: stream.Score, tempo_bpm: float | None) -> stream.Score:
+    """Replace the score's tempo marks with `tempo_bpm`, if given."""
+    if tempo_bpm is None:
+        return score
+
+    for element in list(score.recurse().getElementsByClass(tempo.MetronomeMark)):
+        site = element.activeSite
+        if site is not None:
+            site.remove(element)
+    score.insert(0, tempo.MetronomeMark(number=tempo_bpm))
+    return score
+
+
 def _validate_render_options(
     width: int,
     height: int,
@@ -74,6 +89,7 @@ def _validate_render_options(
     postroll: float,
     audio_sample_rate: int,
     audio_delay: float,
+    tempo_bpm: float | None,
 ) -> None:
     """Validate values before handing them to the external renderer."""
     if width <= 0 or height <= 0:
@@ -88,6 +104,13 @@ def _validate_render_options(
         raise ValueError("audio_sample_rate must be positive")
     if audio_delay < 0:
         raise ValueError("audio_delay cannot be negative")
+    if tempo_bpm is not None and not (
+        MIN_TEMPO_BPM <= tempo_bpm <= MAX_TEMPO_BPM
+    ):
+        raise ValueError(
+            "tempo_bpm must be between "
+            f"{MIN_TEMPO_BPM} and {MAX_TEMPO_BPM}, got {tempo_bpm}"
+        )
 
 
 def midi_to_audio(
@@ -196,6 +219,7 @@ def midi_to_video(
     soundfont_path: str | Path | None = None,
     audio_sample_rate: int = DEFAULT_AUDIO_SAMPLE_RATE,
     audio_delay: float = 1.0,
+    tempo_bpm: float | None = None,
 ) -> Path:
     """Render a music21 score to an MPEG4 video with MIDIVisualizer.
 
@@ -212,6 +236,7 @@ def midi_to_video(
         postroll,
         audio_sample_rate,
         audio_delay,
+        tempo_bpm,
     )
 
     output = Path(output_path).expanduser()
@@ -236,7 +261,7 @@ def midi_to_video(
         staged_video_path = temporary_directory_path / "render.mp4"
         staged_audio_path = temporary_directory_path / "audio.wav"
         staged_output_path = temporary_directory_path / "output.mp4"
-        download_midi(midi, midi_path)
+        download_midi(_apply_tempo(midi, tempo_bpm), midi_path)
 
         command = [
             visualizer,
@@ -307,6 +332,16 @@ def midi_to_video(
 
 
 def main() -> int:
+    import sys
+
+    tempo_bpm: float | None = None
+    arguments = sys.argv[1:]
+    if "--tempo" in arguments:
+        position = arguments.index("--tempo")
+        if position + 1 >= len(arguments):
+            raise ValueError("--tempo requires a BPM value")
+        tempo_bpm = float(arguments[position + 1])
+
     pdf_path = Path("turning-page.pdf")  # Set this to the PDF you want to convert.
 
     if not pdf_path.is_file():
@@ -316,7 +351,7 @@ def main() -> int:
         musicxml = pdf_to_musicxml(document)
 
     midi = musicXML_to_midi(musicxml)
-    output = midi_to_video(midi)
+    output = midi_to_video(midi, tempo_bpm=tempo_bpm)
     print(output)
     return 0
 

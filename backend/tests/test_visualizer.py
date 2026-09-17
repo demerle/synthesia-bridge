@@ -3,7 +3,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from music21 import note, stream
+from music21 import converter, note, stream, tempo
 
 from synthesia_bridge.services.visualizer import (
     AudioRenderError,
@@ -260,3 +260,53 @@ def test_midi_to_video_with_installed_visualizer(tmp_path: Path) -> None:
         check=True,
     )
     assert "codec_name=aac" in ffprobe_result.stdout
+
+
+def test_tempo_override_sets_written_midi_tempo(tmp_path: Path) -> None:
+    """A score rendered with tempo_bpm keeps the requested tempo in the MIDI.
+
+    END-TO-END via a real MIDI file round trip, no mocks: write the MIDI
+    exactly as midi_to_video() does, then re-read it and inspect the tempo.
+    """
+    from synthesia_bridge.services.visualizer import _apply_tempo
+
+    score = simple_score()
+    score.insert(0, tempo.MetronomeMark(number=240))
+
+    rendered = _apply_tempo(score, 72)
+    output_path = tmp_path / "out.mid"
+    rendered.write("midi", fp=str(output_path))
+
+    score_back = converter.parse(str(output_path), format="midi")
+    marks = list(score_back.recurse().getElementsByClass(tempo.MetronomeMark))
+    assert len(marks) == 1
+    assert marks[0].number == 72
+
+
+def test_tempo_override_keeps_score_when_not_requested() -> None:
+    from synthesia_bridge.services.visualizer import _apply_tempo
+
+    score = simple_score()
+    original = tempo.MetronomeMark(number=90)
+    score.insert(0, original)
+
+    _apply_tempo(score, None)
+
+    marks = list(score.recurse().getElementsByClass(tempo.MetronomeMark))
+    assert len(marks) == 1
+    assert marks[0].number == 90
+
+
+def test_tempo_override_rejects_bad_values(tmp_path: Path) -> None:
+    executable = visualizer_executable(tmp_path)
+    soundfont = tmp_path / "dummy.sf2"
+    soundfont.write_bytes(b"dummy soundfont")
+
+    with pytest.raises(ValueError):
+        midi_to_video(
+            simple_score(),
+            tmp_path / "out.mp4",
+            executable,
+            soundfont_path=soundfont,
+            tempo_bpm=999,
+        )
